@@ -34,6 +34,8 @@ typedef NS_ENUM(NSInteger, PSWebSocketServerConnectionReadyState) {
     PSWebSocketServerConnectionReadyStateClosed
 };
 
+static const void * const kWorkQueueSpecificKey = &kWorkQueueSpecificKey;
+
 @interface PSWebSocketServerConnection : NSObject
 
 @property (nonatomic, strong, readonly) NSString *identifier;
@@ -103,6 +105,8 @@ void PSWebSocketServerAcceptCallback(CFSocketRef s, CFSocketCallBackType type, C
     if((self = [super init])) {
         _workQueue = dispatch_queue_create(nil, nil);
         
+        dispatch_queue_set_specific(_workQueue, kWorkQueueSpecificKey, (__bridge void *)self, NULL);
+
         // copy SSL certificates
         _SSLCertificates = [SSLCertificates copy];
         _secure = (_SSLCertificates != nil);
@@ -667,7 +671,14 @@ void PSWebSocketServerAcceptCallback(CFSocketRef s, CFSocketCallBackType type, C
 }
 - (void)executeWorkAndWait:(void (^)(void))work {
     NSParameterAssert(work);
-    dispatch_sync(_workQueue, work);
+    NSParameterAssert(work);
+    if ((__bridge id)dispatch_get_specific(kWorkQueueSpecificKey) != self) {
+        dispatch_sync(_workQueue, work);
+    } else {
+        if (work) {
+            work();
+        }
+    }
 }
 - (void)executeDelegate:(void (^)(void))work {
     NSParameterAssert(work);
